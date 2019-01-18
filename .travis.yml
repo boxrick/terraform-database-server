@@ -1,0 +1,46 @@
+language: python
+sudo: true
+
+# Install required packages for build
+addons:
+  apt:
+    packages:
+    - unzip
+    - wget
+
+env:
+  global:
+    - TERRAFORM_VERSION="0.11.11"
+    - GCLOUD_KEYFILE_JSON="./gcloud_credentials"
+
+# # # Only trigger on master branch and tagged releases
+# if: (branch = master)
+
+# Make use of caching to improve build times
+cache:
+  apt: true
+  directories:
+    - "$HOME/bin"
+
+install:
+# Install Terraform
+- if ! "terraform version"; then
+    mkdir -p "${HOME}/bin" || true;
+    wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -O /tmp/terraform.zip;
+    unzip -o -d ${HOME}/bin/ /tmp/terraform.zip;
+    chmod +x "${HOME}/bin/terraform";
+    terraform version;
+  fi
+# Base64 decode encrypted credentials and place into file
+- echo $GCLOUD_CREDENTIALS_BASE64 | base64 --decode > ./gcloud_credentials
+
+jobs:
+  include:
+    - name: "test-terraform-module"
+      script:
+        - terraform init
+        - terraform validate -var "database_name=terraform-ci-test" -var "database_name=terraform-ci-test"
+        - terraform apply -var "database_name=terraform-ci-test" -auto-approve
+
+after_script:
+  - terraform destroy -var "database_name=terraform-ci-test" -auto-approve
